@@ -1,7 +1,6 @@
 # 온디바이스 포토 큐레이션
 
-> A fully on-device computer-vision CLI that surfaces photos by *feeling and context* —
-> laughter, seasons, trips, themes — instead of scrolling a timeline.
+> 사진을 시간순이 아니라 감정·맥락(웃음·계절·여행·주제)으로 꺼내주는 완전 온디바이스 컴퓨터비전 CLI.
 
 ![Python](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)
 ![PyTorch](https://img.shields.io/badge/PyTorch-torch-EE4C2C?logo=pytorch&logoColor=white)
@@ -10,72 +9,42 @@
 ![On-Device](https://img.shields.io/badge/On--Device-No%20Uploads-success)
 ![Privacy](https://img.shields.io/badge/Privacy-Read--Only%20Originals-blue)
 
-## Overview
+## 개요
 
-Tens of thousands of photos, and the only way to find *that one moment* is scrolling by date.
-This is a personal project I built to fix that: a command-line pipeline that indexes a photo
-library across **6 analysis dimensions** and lets me pull memories by **4 query axes** —
-by emotion, by season, by trip, by theme, or any combination of them.
+사진 수만 장을 쌓아두고도, 정작 "그 순간"을 찾으려면 날짜순으로 스크롤하는 수밖에 없습니다. 이 개인 프로젝트는 그 문제를 풀기 위해 만들었습니다. 사진첩을 **6개 분석 차원**으로 색인하고, **4개 조회 축** — 감정·계절·여행·주제, 또는 이들의 조합 — 으로 추억을 꺼내주는 커맨드라인 파이프라인입니다.
 
-Everything runs **100% on-device**. No server uploads, no account required, and originals
-are opened **read-only**. It runs **two ML models side by side** in roughly **704 lines of
-Python**, and it's designed to survive interruption: an incremental cache checkpoints every
-50 images, so a stopped run picks up where it left off.
+모든 처리는 **100% 온디바이스**로 이뤄집니다. 서버 업로드도, 계정도 필요 없고, 원본은 **읽기 전용**으로만 엽니다. **두 개의 ML 모델을 동시에** 약 **704줄의 파이썬**으로 운용하며, 중단에 강하게 설계했습니다 — 50장마다 증분 캐시를 남겨서, 멈춘 실행도 이어서 처리합니다.
 
-## How It Works
+## 동작 방식
 
-The library is analyzed across six dimensions, then queried along four axes:
+사진첩을 6개 차원으로 분석한 뒤, 4개 축으로 조회합니다.
 
-- **Laughter ranking** — Facial-expression analysis scores each photo by `happy%`, with a
-  bonus for group shots so shared laughter rises to the top.
-- **Mask quality gate** — CLIP zero-shot estimates the probability that a face is masked,
-  then filters those photos out *before* trusting the expression model — defending against a
-  known failure mode (see Technical Highlights).
-- **Seasons** — Derived from the EXIF capture month, so spring/summer/autumn/winter views
-  come straight from when the shutter actually fired.
-- **Trips** — GPS coordinates are binned into a grid to estimate a "home range," photos
-  outside a Haversine radius are flagged as travel, then merged by date into trips.
-- **Themes** — CLIP zero-shot classifies each image into 8 categories, keeping only
-  predictions above a softmax confidence threshold.
-- **Multi-dimensional queries** — Any of the above can be combined into a single query
-  (e.g. laughter + season + theme) to narrow down to a specific kind of memory.
+- **웃음 정렬** — 표정 분석으로 사진별 `happy%`를 매기고, 단체 사진은 가산점을 줘서 함께 웃은 순간이 위로 올라오게 합니다.
+- **마스크 품질 게이트** — CLIP zero-shot으로 얼굴에 마스크가 있을 확률을 산출해, 표정 모델을 신뢰하기 *전에* 그런 사진을 걸러냅니다 (알려진 실패 모드 방어 — 하이라이트 참조).
+- **계절** — EXIF 촬영 월에서 도출해, 봄/여름/가을/겨울 뷰가 실제 셔터를 누른 시점에서 그대로 나옵니다.
+- **여행** — GPS 좌표를 격자로 뭉쳐 "생활권"을 추정하고, Haversine 반경 밖 사진을 여행으로 판정한 뒤 날짜로 묶어 하나의 여행으로 병합합니다.
+- **주제** — CLIP zero-shot으로 8개 카테고리로 분류하되, softmax 확신도 임계값 위의 예측만 채택합니다.
+- **다차원 조회** — 위 축들을 하나의 쿼리로 조합(예: 웃음 + 계절 + 주제)해 특정한 종류의 추억으로 좁혀 들어갑니다.
 
-## Tech Stack
+## 기술 스택
 
-- **Language:** Python 3.12
-- **Facial expression:** DeepFace, with RetinaFace for face detection
-- **Multimodal model:** CLIP (`openai/clip-vit-base-patch32`) via `transformers` + `torch`
-- **Imaging:** Pillow + `pillow-heif` for HEIC support
-- **Numerics & UX:** numpy, tqdm
-- **Runtime:** fully on-device — no uploads, no account, read-only access to originals
+- **언어:** Python 3.12
+- **표정 분석:** DeepFace, 얼굴 검출은 RetinaFace
+- **멀티모달 모델:** CLIP (`openai/clip-vit-base-patch32`) via `transformers` + `torch`
+- **이미지 처리:** Pillow + `pillow-heif` (HEIC 지원)
+- **수치·UX:** numpy, tqdm
+- **런타임:** 완전 온디바이스 — 업로드·계정 없음, 원본 읽기 전용 접근
 
-## Technical Highlights
+## 기술 하이라이트
 
-**Cross-model failure defense.** Facial-expression (FER) models are prone to misreading a
-masked face as a smile. Instead of accepting that, I gate the expression model with CLIP — a
-*different, multimodal* model — to estimate mask probability and reject those photos first.
-It's a design that starts from knowing a model's limits and covers the blind spot with a
-heterogeneous second opinion.
+**이종 모델 교차 방어(cross-model gate).** 표정(FER) 모델은 마스크 쓴 얼굴을 웃음으로 오탐하기 쉽습니다. 이를 그냥 받아들이는 대신, 표정 모델을 CLIP — *다른 종류의* 멀티모달 모델 — 로 게이트를 걸어 마스크 확률을 추정하고 해당 사진을 먼저 제외합니다. 모델의 한계를 아는 데서 출발해, 그 사각지대를 이종 모델의 "제2 의견"으로 메우는 설계입니다.
 
-**One model, two zero-shot tasks.** A single CLIP model is reused zero-shot for *both* theme
-classification and mask detection — no extra training, no second checkpoint to ship, just
-well-chosen prompts driving two jobs.
+**모델 하나, zero-shot 태스크 둘.** 단일 CLIP 모델을 주제 분류와 마스크 판정 *두 가지* 태스크에 학습 없이 재사용합니다 — 추가 학습도, 배포할 두 번째 체크포인트도 없이, 잘 고른 프롬프트만으로 두 일을 시킵니다.
 
-**Real-world robustness.** Getting this to run on an actual library meant solving the
-unglamorous parts: HEIC decoding, non-ASCII file paths, and pinning library
-versions to keep the two-model stack reproducible. The incremental cache (every 50 images)
-makes long runs interruption-tolerant.
+**실전 견고성.** 실제 사진첩에서 돌리려면 화려하지 않은 부분들을 해결해야 했습니다 — HEIC 디코딩, 비-ASCII(한글) 파일 경로, 두 모델 스택의 재현성을 위한 라이브러리 버전 고정. 50장마다의 증분 캐시로 긴 실행도 중단에 강합니다.
 
-**Ethical, private by design.** The system never claims to read someone's inner state. It
-frames results as *"lots of laughter here,"* not *"this person was happy"* — a deliberate
-choice to avoid asserting emotion. Combined with on-device processing, photos never
-leave the machine.
+**설계부터 윤리적·프라이버시 우선.** 이 시스템은 누군가의 내면 상태를 읽는다고 주장하지 않습니다. 결과를 "이 사람은 행복했다"가 아니라 *"여기 웃음이 많았다"*로만 표현합니다 — 감정을 단정하지 않으려는 의도적 선택입니다. 온디바이스 처리와 더해져, 사진이 기기를 떠나지 않습니다.
 
-## My Role
+## 나의 역할
 
-Solo, end-to-end personal project. I designed the pipeline architecture, chose and combined
-the two-model stack, and built the cross-model gating strategy that defends the expression
-model against its masked-face failure mode. I designed the 6 analysis dimensions and 4 query
-axes, tuned the confidence thresholds and travel-detection heuristics, and did the
-library-level troubleshooting (HEIC, path encoding, version pinning) plus the incremental
-caching that makes it robust on real, messy photo collections.
+혼자, 처음부터 끝까지 만든 개인 프로젝트입니다. 파이프라인 아키텍처를 설계하고, 두 모델 스택을 선택·조합했으며, 표정 모델을 마스크 오탐으로부터 지키는 교차 게이트 전략을 만들었습니다. 6개 분석 차원과 4개 조회 축을 설계하고, 확신도 임계값과 여행 판정 휴리스틱을 튜닝했으며, 라이브러리 레벨 트러블슈팅(HEIC·경로 인코딩·버전 고정)과 실제의 어수선한 사진첩에서도 견디게 하는 증분 캐싱까지 직접 구현했습니다.
