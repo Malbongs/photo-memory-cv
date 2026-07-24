@@ -1,4 +1,4 @@
-# Memory Lane — Photo Memories by Emotion, Not Time
+# 온디바이스 포토 큐레이션
 
 > A fully on-device computer-vision CLI that surfaces photos by *feeling and context* —
 > laughter, seasons, trips, themes — instead of scrolling a timeline.
